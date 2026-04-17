@@ -16,7 +16,7 @@ public class SoundManagerEditor : Editor
 
         EditorGUILayout.Space(6);
 
-        SerializedProperty use3D = serializedObject.FindProperty("use3D");
+        SerializedProperty use3D   = serializedObject.FindProperty("use3D");
         SerializedProperty maxDist = serializedObject.FindProperty("maxDistance");
 
         EditorGUILayout.PropertyField(use3D, new GUIContent("Son 3D"));
@@ -29,9 +29,16 @@ public class SoundManagerEditor : Editor
             EditorGUILayout.EndHorizontal();
         }
 
-        EditorGUILayout.Space(10);
+        // ── Volume Master ──────────────────────────────────────────────────
+        EditorGUILayout.Space(6);
+        SerializedProperty mv = serializedObject.FindProperty("masterVolume");
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField("Volume Master", GUILayout.Width(100));
+        mv.floatValue = EditorGUILayout.Slider(mv.floatValue, 0f, 1f);
+        EditorGUILayout.EndHorizontal();
+        EditorGUILayout.Space(4);
 
-        // ── Toggle NORMAL / PLAYLIST ──────────────────────────────────────
+        // ── Toggle NORMAL / PLAYLIST ───────────────────────────────────────
         EditorGUILayout.Space(6);
         EditorGUILayout.BeginHorizontal();
         GUILayout.FlexibleSpace();
@@ -76,6 +83,10 @@ public class SoundManagerEditor : Editor
             EditorGUILayout.LabelField("Volume", GUILayout.Width(55));
             nv.floatValue = EditorGUILayout.Slider(nv.floatValue, 0f, 1f);
             EditorGUILayout.EndHorizontal();
+
+            // Apercu volume final
+            float finalNormal = sm.normalVolume * sm.masterVolume;
+            EditorGUILayout.HelpBox($"Volume final applique : {finalNormal:F2}  (individuel {sm.normalVolume:F2} × master {sm.masterVolume:F2})", MessageType.None);
         }
         else
         {
@@ -119,9 +130,10 @@ public class SoundManagerEditor : Editor
 
                 // En-tete
                 EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField("Clip",    EditorStyles.miniLabel, GUILayout.MinWidth(140));
-                EditorGUILayout.LabelField("Volume",  EditorStyles.miniLabel, GUILayout.Width(90));
-                EditorGUILayout.LabelField("x fois",  EditorStyles.miniLabel, GUILayout.Width(46));
+                EditorGUILayout.LabelField("Clip",      EditorStyles.miniLabel, GUILayout.MinWidth(140));
+                EditorGUILayout.LabelField("Volume",    EditorStyles.miniLabel, GUILayout.Width(90));
+                EditorGUILayout.LabelField("Final",     EditorStyles.miniLabel, GUILayout.Width(38));
+                EditorGUILayout.LabelField("x fois",    EditorStyles.miniLabel, GUILayout.Width(46));
                 GUILayout.Space(26);
                 EditorGUILayout.EndHorizontal();
 
@@ -137,6 +149,12 @@ public class SoundManagerEditor : Editor
                     EditorGUILayout.PropertyField(clip, GUIContent.none, GUILayout.MinWidth(140));
 
                     vol.floatValue = EditorGUILayout.Slider(vol.floatValue, 0f, 1f, GUILayout.Width(90));
+
+                    // Affichage volume final (lecture seule)
+                    float finalVol = vol.floatValue * sm.masterVolume;
+                    GUI.enabled = false;
+                    EditorGUILayout.FloatField(finalVol, GUILayout.Width(38));
+                    GUI.enabled = true;
 
                     repeat.intValue = Mathf.Max(1,
                         EditorGUILayout.IntField(repeat.intValue, GUILayout.Width(46)));
@@ -198,11 +216,14 @@ public class PlaylistEntry
 [RequireComponent(typeof(AudioSource))]
 public class SoundManager : MonoBehaviour
 {
-    [HideInInspector] public bool      playlistMode  = false;
+    [HideInInspector] public bool playlistMode = false;
+
+    // Volume Master (point de controle unique)
+    [HideInInspector, Range(0f, 1f)] public float masterVolume = 1f;
 
     // Mode Normal
     [HideInInspector] public AudioClip normalClip;
-    [HideInInspector, Range(0f,1f)] public float normalVolume = 1f;
+    [HideInInspector, Range(0f, 1f)] public float normalVolume = 1f;
 
     // Mode Playlist
     [HideInInspector] public string subFolder   = "MonDossier";
@@ -213,8 +234,9 @@ public class SoundManager : MonoBehaviour
     Coroutine   _routine;
 
     [Header("Audio Settings")]
-    public bool use3D = false;
+    public bool  use3D       = false;
     public float maxDistance = 20f;
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     void Awake()
@@ -224,32 +246,43 @@ public class SoundManager : MonoBehaviour
         ApplyAudioSettings();
     }
 
-    // OnEnable : se lance chaque fois que le GameObject est active (ou re-active)
     void OnEnable()  => Play();
-
-    // OnDisable : s'arrete quand le GameObject est desactive
     void OnDisable() => StopAll();
 
     // ── API publique ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Modifie le volume master a la volee (0 a 1).
+    /// Met a jour le volume en cours de lecture immediatement.
+    /// </summary>
+    public void SetMasterVolume(float value)
+    {
+        masterVolume = Mathf.Clamp01(value);
+        // Si en mode Normal et en lecture, on applique directement
+        if (!playlistMode && _src != null && _src.isPlaying)
+            _src.volume = normalVolume * masterVolume;
+        // En mode Playlist le volume est mis a jour au prochain clip
+        // (la coroutine relit masterVolume a chaque clip)
+    }
 
     void ApplyAudioSettings()
     {
         if (_src == null) return;
 
-        // 🔊 réglages communs
         _src.minDistance = 0f;
         _src.rolloffMode = AudioRolloffMode.Linear;
 
         if (use3D)
         {
             _src.spatialBlend = 1f;
-            _src.maxDistance = maxDistance;
+            _src.maxDistance  = maxDistance;
         }
         else
         {
             _src.spatialBlend = 0f;
         }
     }
+
     public void Play()
     {
         StopAll();
@@ -311,7 +344,7 @@ public class SoundManager : MonoBehaviour
         }
         _src.loop   = true;
         _src.clip   = normalClip;
-        _src.volume = normalVolume;
+        _src.volume = normalVolume * masterVolume;   // <-- volume final
         _src.Play();
     }
 
@@ -344,29 +377,27 @@ public class SoundManager : MonoBehaviour
             for (int r = 0; r < entry.repeatCount; r++)
             {
                 _src.clip   = entry.clip;
-                _src.volume = entry.volume;   // <-- volume individuel par clip
+                _src.volume = entry.volume * masterVolume;   // <-- volume final
                 _src.Play();
-
-                Debug.Log($"[SoundManager] {entry.clip.name}  " +
-                          $"vol={entry.volume:F2}  ({r + 1}/{entry.repeatCount})");
 
                 yield return new WaitWhile(() => _src.isPlaying);
                 yield return new WaitForSeconds(0.04f);
             }
         }
-
-        Debug.Log("[SoundManager] Playlist terminee.");
     }
 
     void StopAll()
     {
         if (_routine != null) { StopCoroutine(_routine); _routine = null; }
-        if (_src != null) { _src.Stop(); _src.loop = false; }
+        if (_src     != null) { _src.Stop(); _src.loop = false; }
     }
 
     void OnValidate()
     {
         if (_src == null) _src = GetComponent<AudioSource>();
         ApplyAudioSettings();
+        // Mise a jour immediate du volume en mode Normal pendant l'edition
+        if (!playlistMode && _src != null && _src.isPlaying)
+            _src.volume = normalVolume * masterVolume;
     }
 }
