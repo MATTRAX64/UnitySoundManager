@@ -36,10 +36,44 @@ public class SoundManagerEditor : Editor
         EditorGUILayout.LabelField("Volume Master", GUILayout.Width(100));
         mv.floatValue = EditorGUILayout.Slider(mv.floatValue, 0f, 1f);
         EditorGUILayout.EndHorizontal();
-        EditorGUILayout.Space(4);
+
+        // ── Zone Audio / Priorite ──────────────────────────────────────────
+        EditorGUILayout.Space(8);
+        EditorGUILayout.LabelField("Zone Audio", EditorStyles.boldLabel);
+
+        SerializedProperty prio     = serializedObject.FindProperty("zonePriority");
+        SerializedProperty fadeTime = serializedObject.FindProperty("fadeDuration");
+        SerializedProperty tagProp  = serializedObject.FindProperty("listenerTag");
+        SerializedProperty minVol   = serializedObject.FindProperty("backgroundVolumeMult");
+
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField("Priorite", GUILayout.Width(120));
+        prio.intValue = EditorGUILayout.IntField(prio.intValue);
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField("Duree du fade (s)", GUILayout.Width(120));
+        fadeTime.floatValue = Mathf.Max(0.01f, EditorGUILayout.FloatField(fadeTime.floatValue));
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField("Tag du joueur", GUILayout.Width(120));
+        tagProp.stringValue = EditorGUILayout.TextField(tagProp.stringValue);
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField("Volume fond", GUILayout.Width(120));
+        minVol.floatValue = EditorGUILayout.Slider(minVol.floatValue, 0f, 1f);
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.HelpBox(
+            "Quand une zone de priorite superieure est active, ce son descend a Volume Master x Volume fond.\n" +
+            "Priorite plus haute = prend le dessus. A priorites egales, le dernier entre gagne.",
+            MessageType.None);
+
+        EditorGUILayout.Space(6);
 
         // ── Toggle NORMAL / PLAYLIST ───────────────────────────────────────
-        EditorGUILayout.Space(6);
         EditorGUILayout.BeginHorizontal();
         GUILayout.FlexibleSpace();
 
@@ -71,7 +105,6 @@ public class SoundManagerEditor : Editor
         // ════════════════════════════════════════════════════════════════════
         if (!isPlaylist)
         {
-            // ── MODE NORMAL ───────────────────────────────────────────────
             EditorGUILayout.LabelField("Boucle simple", EditorStyles.boldLabel);
 
             SerializedProperty nc = serializedObject.FindProperty("normalClip");
@@ -84,13 +117,13 @@ public class SoundManagerEditor : Editor
             nv.floatValue = EditorGUILayout.Slider(nv.floatValue, 0f, 1f);
             EditorGUILayout.EndHorizontal();
 
-            // Apercu volume final
             float finalNormal = sm.normalVolume * sm.masterVolume;
-            EditorGUILayout.HelpBox($"Volume final applique : {finalNormal:F2}  (individuel {sm.normalVolume:F2} × master {sm.masterVolume:F2})", MessageType.None);
+            EditorGUILayout.HelpBox(
+                $"Volume final : {finalNormal:F2}  (individuel {sm.normalVolume:F2} x master {sm.masterVolume:F2})",
+                MessageType.None);
         }
         else
         {
-            // ── MODE PLAYLIST ─────────────────────────────────────────────
             EditorGUILayout.LabelField("Dossier source", EditorStyles.boldLabel);
 
             EditorGUILayout.BeginHorizontal();
@@ -115,7 +148,6 @@ public class SoundManagerEditor : Editor
 
             EditorGUILayout.Space(8);
 
-            // ── Liste des clips ───────────────────────────────────────────
             SerializedProperty list = serializedObject.FindProperty("playlistEntries");
 
             if (list.arraySize == 0)
@@ -128,12 +160,11 @@ public class SoundManagerEditor : Editor
             {
                 EditorGUILayout.LabelField($"Clips  ({list.arraySize} trouves)", EditorStyles.boldLabel);
 
-                // En-tete
                 EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField("Clip",      EditorStyles.miniLabel, GUILayout.MinWidth(140));
-                EditorGUILayout.LabelField("Volume",    EditorStyles.miniLabel, GUILayout.Width(90));
-                EditorGUILayout.LabelField("Final",     EditorStyles.miniLabel, GUILayout.Width(38));
-                EditorGUILayout.LabelField("x fois",    EditorStyles.miniLabel, GUILayout.Width(46));
+                EditorGUILayout.LabelField("Clip",   EditorStyles.miniLabel, GUILayout.MinWidth(140));
+                EditorGUILayout.LabelField("Volume", EditorStyles.miniLabel, GUILayout.Width(90));
+                EditorGUILayout.LabelField("Final",  EditorStyles.miniLabel, GUILayout.Width(38));
+                EditorGUILayout.LabelField("x fois", EditorStyles.miniLabel, GUILayout.Width(46));
                 GUILayout.Space(26);
                 EditorGUILayout.EndHorizontal();
 
@@ -145,12 +176,9 @@ public class SoundManagerEditor : Editor
                     SerializedProperty repeat = entry.FindPropertyRelative("repeatCount");
 
                     EditorGUILayout.BeginHorizontal();
-
                     EditorGUILayout.PropertyField(clip, GUIContent.none, GUILayout.MinWidth(140));
-
                     vol.floatValue = EditorGUILayout.Slider(vol.floatValue, 0f, 1f, GUILayout.Width(90));
 
-                    // Affichage volume final (lecture seule)
                     float finalVol = vol.floatValue * sm.masterVolume;
                     GUI.enabled = false;
                     EditorGUILayout.FloatField(finalVol, GUILayout.Width(38));
@@ -163,7 +191,6 @@ public class SoundManagerEditor : Editor
                     if (GUILayout.Button("x", GUILayout.Width(22)))
                         list.DeleteArrayElementAtIndex(i);
                     GUI.backgroundColor = Color.white;
-
                     EditorGUILayout.EndHorizontal();
                 }
 
@@ -179,7 +206,7 @@ public class SoundManagerEditor : Editor
             }
         }
 
-        // ── Boutons Play / Stop (runtime) ─────────────────────────────────
+        // ── Boutons Play / Stop ───────────────────────────────────────────
         EditorGUILayout.Space(10);
         EditorGUILayout.LabelField("Controles (Play requis)", EditorStyles.boldLabel);
 
@@ -218,7 +245,7 @@ public class SoundManager : MonoBehaviour
 {
     [HideInInspector] public bool playlistMode = false;
 
-    // Volume Master (point de controle unique)
+    // Volume Master
     [HideInInspector, Range(0f, 1f)] public float masterVolume = 1f;
 
     // Mode Normal
@@ -230,12 +257,24 @@ public class SoundManager : MonoBehaviour
     [HideInInspector] public bool   randomOrder = false;
     [HideInInspector] public List<PlaylistEntry> playlistEntries = new();
 
-    AudioSource _src;
-    Coroutine   _routine;
+    // ── Zone Audio ────────────────────────────────────────────────────────────
+    /// <summary>Priorite de la zone. Plus le chiffre est eleve, plus ce son prend le dessus.</summary>
+    [HideInInspector] public int    zonePriority         = 0;
+    [HideInInspector] public float  fadeDuration         = 1.5f;
+    [HideInInspector] public string listenerTag          = "Player";
+    /// <summary>Multiplicateur applique quand ce son passe en arriere-plan (0 = muet total).</summary>
+    [HideInInspector, Range(0f, 1f)] public float backgroundVolumeMult = 0.15f;
 
     [Header("Audio Settings")]
     public bool  use3D       = false;
     public float maxDistance = 20f;
+
+    AudioSource _src;
+    Coroutine   _routine;
+    Coroutine   _fadeRoutine;
+
+    // Multiplicateur de zone courant (1 = actif / plein volume, backgroundVolumeMult = arriere-plan)
+    float _zoneMult = 1f;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -246,42 +285,21 @@ public class SoundManager : MonoBehaviour
         ApplyAudioSettings();
     }
 
-    void OnEnable()  => Play();
-    void OnDisable() => StopAll();
+    void OnEnable()
+    {
+        AudioZoneManager.Register(this);
+        Play();
+    }
+
+    void OnDisable()
+    {
+        AudioZoneManager.Unregister(this);
+        StopAll();
+    }
 
     // ── API publique ──────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Modifie le volume master a la volee (0 a 1).
-    /// Met a jour le volume en cours de lecture immediatement.
-    /// </summary>
-    public void SetMasterVolume(float value)
-    {
-        masterVolume = Mathf.Clamp01(value);
-        // Si en mode Normal et en lecture, on applique directement
-        if (!playlistMode && _src != null && _src.isPlaying)
-            _src.volume = normalVolume * masterVolume;
-        // En mode Playlist le volume est mis a jour au prochain clip
-        // (la coroutine relit masterVolume a chaque clip)
-    }
-
-    void ApplyAudioSettings()
-    {
-        if (_src == null) return;
-
-        _src.minDistance = 0f;
-        _src.rolloffMode = AudioRolloffMode.Linear;
-
-        if (use3D)
-        {
-            _src.spatialBlend = 1f;
-            _src.maxDistance  = maxDistance;
-        }
-        else
-        {
-            _src.spatialBlend = 0f;
-        }
-    }
+    public int Priority => zonePriority;
 
     public void Play()
     {
@@ -293,7 +311,132 @@ public class SoundManager : MonoBehaviour
 
     public void Stop() => StopAll();
 
-    /// <summary>Rescanne Assets/Sounds/<subFolder> et remplit la liste.</summary>
+    public void SetMasterVolume(float value)
+    {
+        masterVolume = Mathf.Clamp01(value);
+        ApplyCurrentVolume();
+    }
+
+    /// <summary>
+    /// Demarre un fondu vers le multiplicateur cible.
+    /// 1.0 = plein volume  |  backgroundVolumeMult = arriere-plan
+    /// </summary>
+    public void FadeToZoneMultiplier(float target)
+    {
+        if (_fadeRoutine != null) StopCoroutine(_fadeRoutine);
+        _fadeRoutine = StartCoroutine(FadeRoutine(target));
+    }
+
+    // ── Prive ─────────────────────────────────────────────────────────────────
+
+    void ApplyAudioSettings()
+    {
+        if (_src == null) return;
+        _src.minDistance = 0f;
+        _src.rolloffMode = AudioRolloffMode.Linear;
+        _src.spatialBlend = use3D ? 1f : 0f;
+        if (use3D) _src.maxDistance = maxDistance;
+    }
+
+    // Volume reel = volume_clip x masterVolume x _zoneMult
+    float EffectiveVolume(float clipVolume) => clipVolume * masterVolume * _zoneMult;
+
+    void ApplyCurrentVolume()
+    {
+        if (_src == null || playlistMode) return;
+        if (_src.isPlaying) _src.volume = EffectiveVolume(normalVolume);
+    }
+
+    void PlayNormal()
+    {
+        if (normalClip == null)
+        {
+            Debug.LogWarning("[SoundManager] Mode Normal : aucun clip selectionne.");
+            return;
+        }
+        _src.loop   = true;
+        _src.clip   = normalClip;
+        _src.volume = EffectiveVolume(normalVolume);
+        _src.Play();
+    }
+
+    void StartPlaylist()
+    {
+        if (playlistEntries.Count == 0)
+        {
+            Debug.LogWarning("[SoundManager] Mode Playlist : liste vide.");
+            return;
+        }
+        _src.loop = false;
+        _routine  = StartCoroutine(PlaylistRoutine());
+    }
+
+    IEnumerator PlaylistRoutine()
+    {
+        var queue = new List<PlaylistEntry>(playlistEntries);
+
+        if (randomOrder)
+            for (int i = queue.Count - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                (queue[i], queue[j]) = (queue[j], queue[i]);
+            }
+
+        foreach (var entry in queue)
+        {
+            if (entry.clip == null) continue;
+
+            for (int r = 0; r < entry.repeatCount; r++)
+            {
+                _src.clip   = entry.clip;
+                _src.volume = EffectiveVolume(entry.volume);
+                _src.Play();
+
+                // Mise a jour continue du volume (pour les fades en cours de lecture)
+                while (_src.isPlaying)
+                {
+                    _src.volume = EffectiveVolume(entry.volume);
+                    yield return null;
+                }
+
+                yield return new WaitForSeconds(0.04f);
+            }
+        }
+    }
+
+    IEnumerator FadeRoutine(float target)
+    {
+        float start   = _zoneMult;
+        float elapsed = 0f;
+
+        while (elapsed < fadeDuration)
+        {
+            elapsed  += Time.deltaTime;
+            _zoneMult = Mathf.Lerp(start, target, elapsed / fadeDuration);
+            ApplyCurrentVolume();
+            yield return null;
+        }
+
+        _zoneMult    = target;
+        ApplyCurrentVolume();
+        _fadeRoutine = null;
+    }
+
+    void StopAll()
+    {
+        if (_routine     != null) { StopCoroutine(_routine);     _routine     = null; }
+        if (_fadeRoutine != null) { StopCoroutine(_fadeRoutine); _fadeRoutine = null; }
+        if (_src         != null) { _src.Stop(); _src.loop = false; }
+    }
+
+    void OnValidate()
+    {
+        if (_src == null) _src = GetComponent<AudioSource>();
+        ApplyAudioSettings();
+        if (!playlistMode && _src != null && _src.isPlaying)
+            _src.volume = EffectiveVolume(normalVolume);
+    }
+
     public void RefreshFolder()
     {
         playlistEntries.Clear();
@@ -331,73 +474,5 @@ public class SoundManager : MonoBehaviour
         }
 
         Debug.Log($"[SoundManager] {playlistEntries.Count} clip(s) depuis Assets/Sounds/{subFolder}/");
-    }
-
-    // ── Prive ─────────────────────────────────────────────────────────────────
-
-    void PlayNormal()
-    {
-        if (normalClip == null)
-        {
-            Debug.LogWarning("[SoundManager] Mode Normal : aucun clip selectionne.");
-            return;
-        }
-        _src.loop   = true;
-        _src.clip   = normalClip;
-        _src.volume = normalVolume * masterVolume;   // <-- volume final
-        _src.Play();
-    }
-
-    void StartPlaylist()
-    {
-        if (playlistEntries.Count == 0)
-        {
-            Debug.LogWarning("[SoundManager] Mode Playlist : liste vide.");
-            return;
-        }
-        _src.loop = false;
-        _routine  = StartCoroutine(PlaylistRoutine());
-    }
-
-    IEnumerator PlaylistRoutine()
-    {
-        var queue = new List<PlaylistEntry>(playlistEntries);
-
-        if (randomOrder)
-            for (int i = queue.Count - 1; i > 0; i--)
-            {
-                int j = Random.Range(0, i + 1);
-                (queue[i], queue[j]) = (queue[j], queue[i]);
-            }
-
-        foreach (var entry in queue)
-        {
-            if (entry.clip == null) continue;
-
-            for (int r = 0; r < entry.repeatCount; r++)
-            {
-                _src.clip   = entry.clip;
-                _src.volume = entry.volume * masterVolume;   // <-- volume final
-                _src.Play();
-
-                yield return new WaitWhile(() => _src.isPlaying);
-                yield return new WaitForSeconds(0.04f);
-            }
-        }
-    }
-
-    void StopAll()
-    {
-        if (_routine != null) { StopCoroutine(_routine); _routine = null; }
-        if (_src     != null) { _src.Stop(); _src.loop = false; }
-    }
-
-    void OnValidate()
-    {
-        if (_src == null) _src = GetComponent<AudioSource>();
-        ApplyAudioSettings();
-        // Mise a jour immediate du volume en mode Normal pendant l'edition
-        if (!playlistMode && _src != null && _src.isPlaying)
-            _src.volume = normalVolume * masterVolume;
     }
 }
